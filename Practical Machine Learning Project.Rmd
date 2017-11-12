@@ -1,0 +1,105 @@
+---
+title: "Practical Machine Learning Project"
+author: "Kleanthis Mazarakis"
+date: "November 10, 2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+##Goal of the project
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+
+##Load required Libraries
+
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+
+```
+
+##Read the Datasets
+
+```{r}
+URLtrain <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+URLtest <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training <- read.csv(url(URLtrain))
+testing <- read.csv(url(URLtest))
+
+str(training)
+```
+
+We notice that there are a lot of NA values in a few of the training dataset columns, which are not going to be useful for our predictions. We can remove these columns 
+
+##Cleaning the data
+
+```{r}
+delete <- which(colSums(is.na(training))>0.2*nrow(training))
+training_na_removed <- training[,-delete]
+testing_na_removed <- testing[,-delete]
+
+#Find the near zero variance columns
+nzv <- nearZeroVar(training_na_removed, saveMetrics = TRUE)
+training_nzv <- training_na_removed[,nzv$nzv==FALSE]
+testing_nzv <- testing_na_removed[,nzv$nzv==FALSE]
+
+#Remove also the first 6 columns because they only contain static information
+training_cleaned <- training_nzv[,-c(1:6)]
+testing_cleaned <- testing_nzv[,-c(1:6)]
+dim(training_cleaned); dim(testing_cleaned)
+```
+
+##Cross Validation - Splitting the cleaned training data set into training and test set
+```{r}
+inTrain <- createDataPartition(y=training_cleaned$classe, p=0.7, list = FALSE)
+train1 <- training_cleaned[inTrain,]
+test1 <- training_cleaned[-inTrain,]
+```
+
+
+##Build Decision Tree Model
+```{r}
+mod_rpart <- rpart(classe~., data = train1, method = "class")
+##Plot the tree
+rpart.plot(mod_rpart,extra=100,under=TRUE)
+##Make the perdictions and show confusion matrix
+prediction_rpart <- predict(mod_rpart, test1, type = "class")
+confusionMatrix(prediction_rpart, test1$classe)
+```
+
+##Build Random Forest Model
+```{r}
+mod_rf <- randomForest(classe ~ ., data=train1)
+print(mod_rf)
+predict_rf <- predict(mod_rf, test1)
+confusionMatrix(test1$classe, predict_rf)
+```
+
+This shows that the accuracy of the Random Forest model is better than the Decision Tree.
+We will use the random forest to predict the values of the testing_cleaned set.
+
+##Prediction of Test Set
+```{r}
+predict(mod_rf, testing_cleaned)
+```
